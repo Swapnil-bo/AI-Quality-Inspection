@@ -15,7 +15,9 @@ predict(image) -> dict with:
     overlay_base64: PNG image, the original image with a
         Gaussian-smoothed anomaly heatmap alpha-blended on top,
         base64-encoded so a JSON API response can carry it directly
-        without a separate image-hosting step.
+        without a separate image-hosting step. The heatmap is blended
+        strongly for "defect" results and only faintly for "good"
+        ones (see OVERLAY_ALPHA_* below).
 
 This reuses the exact scoring path already proven correct in
 patchcore.py / compare_heatmaps.py -- no reimplementation of the
@@ -39,7 +41,14 @@ from patchcore import PatchCoreExtractor, score_single_image_map
 CATEGORY = "transistor"
 PATCHCORE_CHECKPOINT = "models/phase4_patchcore_bank.joblib"
 IMAGE_SIZE = 256
-OVERLAY_ALPHA = 0.45  # heatmap opacity when blended onto the original image
+
+# Heatmap opacity when blended onto the original image. The heatmap is
+# min-max normalized per image, so even a clean part's hottest spot
+# renders bright yellow -- dimming it on "good" results stops the
+# overlay from contradicting a PASS verdict. A fixed color scale
+# anchored to the threshold would be the proper fix (v2).
+OVERLAY_ALPHA_DEFECT = 0.45
+OVERLAY_ALPHA_GOOD = 0.15
 
 IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
 IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
@@ -71,10 +80,13 @@ class PatchCoreInferenceService:
             f"top_k_percent={self.top_k_percent}"
         )
 
-    def _make_overlay(self, image_tensor: torch.Tensor, distance_map: np.ndarray) -> str:
+    def _make_overlay(self, image_tensor: torch.Tensor, distance_map: np.ndarray, label: str) -> str:
         """Upsamples + smooths the raw distance map (same as
         compare_heatmaps.py), colorizes it, and alpha-blends it onto
-        the unnormalized original image. Returns a base64 PNG."""
+        the unnormalized original image. The blend is strong for
+        "defect" and faint for "good". Returns a base64 PNG."""
+        alpha = OVERLAY_ALPHA_DEFECT if label == "defect" else OVERLAY_ALPHA_GOOD
+
         upsampled = F.interpolate(
             torch.tensor(distance_map).unsqueeze(0).unsqueeze(0).float(),
             size=(IMAGE_SIZE, IMAGE_SIZE), mode="bilinear", align_corners=False,
@@ -87,8 +99,8 @@ class PatchCoreInferenceService:
         original_rgb = (_unnormalize(image_tensor).permute(1, 2, 0).numpy() * 255).astype(np.uint8)
 
         blended = (
-            original_rgb.astype(np.float32) * (1 - OVERLAY_ALPHA)
-            + heatmap_rgb.astype(np.float32) * OVERLAY_ALPHA
+            original_rgb.astype(np.float32) * (1 - alpha)
+            + heatmap_rgb.astype(np.float32) * alpha
         ).astype(np.uint8)
 
         buf = io.BytesIO()
@@ -108,7 +120,7 @@ class PatchCoreInferenceService:
             "score": round(float(score), 5),
             "threshold": round(float(self.threshold), 5),
             "category": CATEGORY,
-            "overlay_base64": self._make_overlay(image_tensor, distance_map),
+            "overlay_base64": self._make_overlay(image_tensor, distance_map, label),
         }
 
 

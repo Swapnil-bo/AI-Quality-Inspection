@@ -1,0 +1,75 @@
+:root {
+  --bg: #0c0d0f;
+  --surface: #17191d;
+  --surface-raised: #1d2024;
+  --border: #2b2e33;
+  --border-soft: #24262b;
+  --copper: #c17a4e;
+  --copper-glow: #e0a878;
+  --pass: #4ade80;
+  --pass-dim: #1f3a2c;
+  --defect: #f0654b;
+  --defect-dim: #3d221d;
+  --text: #edeae5;
+  --text-muted: #8b8e94;
+  --text-dim: #5a5d62;
+
+  --font-mono: "IBM Plex Mono", "SF Mono", monospace;
+  --font-sans: "IBM Plex Sans", -apple-system, sans-serif;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(193, 122, 78, 0.06), transparent 45%),
+    radial-gradient(circle at 85% 90%, rgba(193, 122, 78, 0.04), transparent 40%);
+  color: var(--text);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--copper);
+  color: var(--bg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--copper-glow);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
