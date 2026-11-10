@@ -12,12 +12,16 @@ predict(image) -> dict with:
     score: float, raw top-K nearest-neighbor distance
     threshold: float, the calibrated decision threshold (95th
         percentile, per train_patchcore.py)
-    overlay_base64: PNG image, the original image with a
-        Gaussian-smoothed anomaly heatmap alpha-blended on top,
-        base64-encoded so a JSON API response can carry it directly
-        without a separate image-hosting step. The heatmap is blended
-        strongly for "defect" results and only faintly for "good"
-        ones (see OVERLAY_ALPHA_* below).
+    category: which component this model was trained on
+    heatmap_base64: PNG of the colorized anomaly heatmap on its own
+        (256x256). The frontend layers it over the original image and
+        lets the user control the opacity.
+    overlay_base64: PNG of the original with the heatmap alpha-blended
+        on top (strong for "defect", faint for "good"). Kept for API
+        consumers that just want one ready-made image.
+
+Both images are base64-encoded so a JSON response can carry them
+without a separate image-hosting step.
 
 This reuses the exact scoring path already proven correct in
 patchcore.py / compare_heatmaps.py -- no reimplementation of the
@@ -42,7 +46,7 @@ CATEGORY = "transistor"
 PATCHCORE_CHECKPOINT = "models/phase4_patchcore_bank.joblib"
 IMAGE_SIZE = 256
 
-# Heatmap opacity when blended onto the original image. The heatmap is
+# Heatmap opacity for the pre-blended overlay image. The heatmap is
 # min-max normalized per image, so even a clean part's hottest spot
 # renders bright yellow -- dimming it on "good" results stops the
 # overlay from contradicting a PASS verdict. A fixed color scale
@@ -58,6 +62,12 @@ def _unnormalize(img: torch.Tensor) -> torch.Tensor:
     """Reverses dataset.py's ImageNet normalization for display --
     same helper used in anomaly_heatmap.py / compare_heatmaps.py."""
     return (img * IMAGENET_STD + IMAGENET_MEAN).clamp(0, 1)
+
+
+def _png_base64(rgb: np.ndarray) -> str:
+    buf = io.BytesIO()
+    Image.fromarray(rgb).save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
 class PatchCoreInferenceService:
@@ -80,11 +90,11 @@ class PatchCoreInferenceService:
             f"top_k_percent={self.top_k_percent}"
         )
 
-    def _make_overlay(self, image_tensor: torch.Tensor, distance_map: np.ndarray, label: str) -> str:
+    def _make_visuals(self, image_tensor: torch.Tensor, distance_map: np.ndarray, label: str):
         """Upsamples + smooths the raw distance map (same as
-        compare_heatmaps.py), colorizes it, and alpha-blends it onto
-        the unnormalized original image. The blend is strong for
-        "defect" and faint for "good". Returns a base64 PNG."""
+        compare_heatmaps.py) and colorizes it. Returns a tuple of two
+        base64 PNGs: (overlay, heatmap) -- the heatmap alone, and the
+        heatmap alpha-blended onto the unnormalized original."""
         alpha = OVERLAY_ALPHA_DEFECT if label == "defect" else OVERLAY_ALPHA_GOOD
 
         upsampled = F.interpolate(
@@ -103,9 +113,7 @@ class PatchCoreInferenceService:
             + heatmap_rgb.astype(np.float32) * alpha
         ).astype(np.uint8)
 
-        buf = io.BytesIO()
-        Image.fromarray(blended).save(buf, format="PNG")
-        return base64.b64encode(buf.getvalue()).decode("utf-8")
+        return _png_base64(blended), _png_base64(heatmap_rgb)
 
     def predict(self, pil_image: Image.Image) -> dict:
         image_tensor = self.transform(pil_image.convert("RGB"))
@@ -114,13 +122,15 @@ class PatchCoreInferenceService:
             self.extractor, image_tensor, self.nn_index, self.top_k_percent
         )
         label = "defect" if score > self.threshold else "good"
+        overlay_b64, heatmap_b64 = self._make_visuals(image_tensor, distance_map, label)
 
         return {
             "label": label,
             "score": round(float(score), 5),
             "threshold": round(float(self.threshold), 5),
             "category": CATEGORY,
-            "overlay_base64": self._make_overlay(image_tensor, distance_map, label),
+            "heatmap_base64": heatmap_b64,
+            "overlay_base64": overlay_b64,
         }
 
 
@@ -155,4 +165,5 @@ if __name__ == "__main__":
     print(f"\nimage: {defect_path}")
     print(f"predicted: {result['label']} (score={result['score']}, threshold={result['threshold']})")
     print("actual: defect")
+    print(f"heatmap_base64 length: {len(result['heatmap_base64'])} chars")
     print(f"overlay_base64 length: {len(result['overlay_base64'])} chars")
