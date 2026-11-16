@@ -4,4 +4,14 @@ __pycache__/
 .DS_Store
 data/
 *.pth
-models/
+
+# env files / secrets
+.env
+.env.*
+!.env.example
+
+# Model artifacts: ignore everything in models/ EXCEPT the PatchCore memory
+# bank the API serves. Must be `models/*`, not `models/` -- git cannot
+# re-include a file whose parent directory is ignored.
+models/*
+!models/phase4_patchcore_bank.joblib
