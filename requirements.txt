@@ -1,0 +1,29 @@
+# Pinned to the exact versions this project was built and tested with
+# (Python 3.9.6).
+#
+# scikit-learn / numpy / scipy / joblib matter most: models/phase4_patchcore_bank.joblib
+# is a pickled scikit-learn NearestNeighbors object, and pickles can fail to
+# load (or load wrongly) under a different scikit-learn/numpy than the one
+# that saved them.
+#
+# On a Linux CPU host, install torch/torchvision from the CPU wheel index
+# FIRST (the default PyPI Linux wheel bundles CUDA and is ~GBs):
+#   pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cpu
+# then `pip install -r requirements.txt` -- the pins below accept the +cpu build.
+
+# model + data
+torch==2.8.0
+torchvision==0.23.0
+scikit-learn==1.6.1
+scipy==1.13.1
+numpy==2.0.2
+pillow==11.3.0
+matplotlib==3.9.4
+joblib==1.5.3
+
+# API
+fastapi==0.128.8
+starlette==0.49.3
+pydantic==2.13.4
+uvicorn==0.39.0
+python-multipart==0.0.20
