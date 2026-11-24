@@ -274,5 +274,5 @@ gcloud run services update qc-inspection-api \
 **Swapnil Hazra**, B.Tech CSE (AI) at Brainware University, Kolkata.
 [GitHub](https://github.com/Swapnil-bo) · [X](https://x.com/SwapnilHazra4) · [Portfolio](https://swapnilhazra.vercel.app)
  
-Developed as a B.Tech project and shared as part of my public 100 Days of Vibe Coding build log.
+Developed as a B.Tech project.
  
